@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+db.sqlite3
+.env
+.venv/
+.geocode_cache/
+
+.venv*/
+*.bak*
+.vscode/
+.idea/

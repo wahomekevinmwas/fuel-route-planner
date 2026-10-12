@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Fuel route planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    #bar { padding: 10px 14px; background: #1f3a5f; color: #fff; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    #bar input { padding: 6px 8px; border: 0; border-radius: 4px; min-width: 200px; }
+    #bar button { padding: 6px 14px; border: 0; border-radius: 4px; background: #f0b429; cursor: pointer; }
+    #summary { padding: 8px 14px; background: #eef2f7; font-size: 14px; }
+    #map { height: calc(100vh - 100px); }
+  </style>
+</head>
+<body>
+  <form id="bar" method="get">
+    <input name="start" placeholder="Start, e.g. Chicago, IL" value="{{ start }}" required>
+    <input name="finish" placeholder="Finish, e.g. Dallas, TX" value="{{ finish }}" required>
+    <button type="submit">Plan route</button>
+  </form>
+  <div id="summary">Enter a start and finish within the USA.</div>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const apiUrl = "{{ api_url|escapejs }}";
+    const map = L.map("map").setView([39.5, -98.35], 4);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18, attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    if (apiUrl) {
+      document.getElementById("summary").textContent = "Planning...";
+      fetch(apiUrl).then(r => r.json()).then(d => {
+        if (d.error) { document.getElementById("summary").textContent = d.error; return; }
+        const line = L.geoJSON(d.route, { style: { color: "#1f6feb", weight: 5 } }).addTo(map);
+        map.fitBounds(line.getBounds(), { padding: [30, 30] });
+        L.marker([d.start.lat, d.start.lng]).addTo(map).bindPopup("<b>Start</b><br>" + d.start.label);
+        L.marker([d.finish.lat, d.finish.lng]).addTo(map).bindPopup("<b>Finish</b><br>" + d.finish.label);
+        d.fuel_stops.forEach((s, i) => {
+          L.circleMarker([s.lat, s.lng], { radius: 9, color: "#c0392b", fillOpacity: 0.9 })
+            .addTo(map)
+            .bindPopup(`<b>Stop ${i + 1}: ${s.name}</b><br>${s.city}, ${s.state}<br>` +
+              `Mile ${s.mile_marker} &middot; $${s.price_per_gallon}/gal<br>` +
+              `${s.gallons_purchased} gal = $${s.cost}`);
+        });
+        document.getElementById("summary").textContent =
+          `${d.distance_miles} miles, ${d.fuel_stops.length} fuel stop(s), total fuel cost $${d.total_fuel_cost}` +
+          ` (${d.timing_ms.total} ms)`;
+      }).catch(e => document.getElementById("summary").textContent = "Request failed: " + e);
+    }
+  </script>
+</body>
+</html>
